@@ -2,61 +2,53 @@ name: CI/CD - Build & Deploy to Linux
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]   # deploy only when pushing to main branch
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      # 1️⃣ Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Use Node.js
+      # 2️⃣ Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      - name: Lint (optional)
-        run: npm run lint || echo "Lint skipped"
-
-      - name: Run tests (optional)
-        run: npm test -- --watchAll=false || echo "Tests skipped"
-
-      - name: Build React app
+      # 4️⃣ Build React app
+      - name: Build React App
         run: npm run build
 
-      # Setup SSH with private key
+      # 5️⃣ Setup SSH agent
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Ensure target directory exists
-      - name: Ensure target dir exists on server
+      # 6️⃣ Test SSH connection (debug)
+      - name: Test SSH connection
         run: |
           ssh -o StrictHostKeyChecking=no -p "${{ secrets.SSH_PORT }}" \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "sudo mkdir -p ${{ secrets.TARGET_DIR }} && sudo chown -R ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} ${{ secrets.TARGET_DIR }}"
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "echo ✅ SSH key auth working"
         env:
           SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
 
-      # Deploy build folder using rsync
-      - name: Rsync build files to server
+      # 7️⃣ Deploy build folder to EC2
+      - name: Deploy to EC2
         run: |
-          rsync -avz --delete -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./build/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/"
-        env:
-          SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
+            build/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/"
 
-      # Restart Nginx after deployment
-      - name: Restart nginx (remote)
+      # 8️⃣ Restart Nginx
+      - name: Restart Nginx
         run: |
           ssh -o StrictHostKeyChecking=no -p "${{ secrets.SSH_PORT }}" \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "sudo systemctl restart nginx"
-        env:
-          SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo systemctl restart nginx"
