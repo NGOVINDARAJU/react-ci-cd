@@ -13,6 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Debug secrets
+        run: |
+          echo "USER=${{ secrets.SSH_USER }}"
+          echo "HOST=${{ secrets.SSH_HOST }}"
+          echo "PORT=${{ secrets.SSH_PORT }}"
+          echo "DIR=${{ secrets.TARGET_DIR }}"
+
+
       # 2️⃣ Setup Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
