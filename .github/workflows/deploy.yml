@@ -47,6 +47,7 @@ jobs:
           rsync -avz -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
             build/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/"
 
+
       # 8️⃣ Restart Nginx
       - name: Restart Nginx
         run: |
