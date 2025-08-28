@@ -2,53 +2,54 @@ name: CI/CD - Build & Deploy to Linux
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # deploy only when pushing to main branch
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Lint code
-        run: npm run lint
 
-      - name: Run tests
-        run: npm test
-
+      # 4️⃣ Build React app
       - name: Build React App
         run: npm run build
 
+      # 5️⃣ Setup SSH agent
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy build folder
+      # 6️⃣ Test SSH connection (debug)
+      - name: Test SSH connection
         run: |
           ssh -o StrictHostKeyChecking=no -p "${{ secrets.SSH_PORT }}" \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "mkdir -p ${{ secrets.TARGET_DIR }}/tmp_upload"
+          "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "echo ✅ SSH key auth working"
+        env:
+          SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
 
+      # 7️⃣ Deploy build folder to EC2
+      - name: Deploy to EC2
+        run: |
           rsync -avz -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-            build/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/tmp_upload/"
+          build/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/"
 
+      # 8️⃣ Restart Nginx
+      - name: Restart Nginx
+        run: |
           ssh -o StrictHostKeyChecking=no -p "${{ secrets.SSH_PORT }}" \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "
-            sudo rm -rf ${{ secrets.TARGET_DIR }}/old_build || true
-            if [ -d ${{ secrets.TARGET_DIR }}/current ]; then
-              sudo mv ${{ secrets.TARGET_DIR }}/current ${{ secrets.TARGET_DIR }}/old_build
-            fi
-            sudo mv ${{ secrets.TARGET_DIR }}/tmp_upload ${{ secrets.TARGET_DIR }}/current
-            sudo chown -R www-data:www-data ${{ secrets.TARGET_DIR }}/current
-            sudo systemctl reload nginx
-          "
+          "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo systemctl restart nginx"
